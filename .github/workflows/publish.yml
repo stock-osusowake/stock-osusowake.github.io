@@ -1,0 +1,127 @@
+name: publish
+
+# 時刻は UTC（JST-9h）。20:35 / 20:45 JST が本番、以降は再試行。
+on:
+  schedule:
+    - cron: "35 11 * * *"   # 20:35 JST
+    - cron: "45 11 * * *"   # 20:45 JST
+    - cron: "10 12 * * *"   # 21:10 JST (retry)
+    - cron: "40 12 * * *"   # 21:40 JST (retry)
+    - cron: "30 13 * * *"   # 22:30 JST (retry)
+    - cron: "20 14 * * *"   # 23:20 JST (retry)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run（Metaへ送信せず、pushもしない）"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages  # deploy.yml と同じ。公開中にページ更新が割り込まないように
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: github-pages
+    env:
+      DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+      PAGES_BASE: https://${{ github.repository_owner }}.github.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout queue (private)
+        uses: actions/checkout@v4
+        with:
+          repository: stock-osusowake/post-queue
+          token: ${{ secrets.BOT_PAT }}
+          path: queue-checkout
+
+      - name: Git identity
+        run: |
+          git -C queue-checkout config user.name "stock-osusowake-bot"
+          git -C queue-checkout config user.email "bot@users.noreply.github.com"
+
+      - name: Select today's post
+        id: sel
+        run: python3 publisher/publish.py --mode select --queue-dir queue-checkout
+
+      - name: Stage video into Pages artifact
+        id: stage
+        if: steps.sel.outputs.has_post == 'true'
+        env:
+          VIDEO_REL: ${{ steps.sel.outputs.video }}
+        run: |
+          set -euo pipefail
+          name="$(openssl rand -hex 12)"
+          rm -rf public-clean
+          cp -r public public-clean
+          mkdir -p public/m
+          cp "queue-checkout/${VIDEO_REL}" "public/m/${name}.mp4"
+          echo "video_url=${PAGES_BASE}/m/${name}.mp4" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Pages
+        if: steps.sel.outputs.has_post == 'true' && env.DRY_RUN == ''
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact (with video)
+        if: steps.sel.outputs.has_post == 'true' && env.DRY_RUN == ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy (with video)
+        if: steps.sel.outputs.has_post == 'true' && env.DRY_RUN == ''
+        uses: actions/deploy-pages@v4
+
+      - name: Publish to Instagram
+        if: steps.sel.outputs.has_post == 'true'
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          VIDEO_URL: ${{ steps.stage.outputs.video_url }}
+        run: python3 publisher/publish.py --mode publish --queue-dir queue-checkout
+
+      - name: Upload artifact (clean, without video)
+        if: always() && steps.sel.outputs.has_post == 'true' && env.DRY_RUN == ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: pages-clean
+          path: public-clean
+
+      - name: Deploy (clean, without video)
+        if: always() && steps.sel.outputs.has_post == 'true' && env.DRY_RUN == ''
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: pages-clean
+
+      - name: Open failure issue (private queue repo)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          OWNER_LOGIN: ${{ vars.OWNER_LOGIN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -u
+          repo="stock-osusowake/post-queue"
+          title="投稿の公開に失敗しました（$(TZ=Asia/Tokyo date +%F)）"
+          existing="$(gh issue list --repo "$repo" --state open --limit 50 --json number,title \
+            --jq ".[] | select(.title==\"$title\") | .number" | head -n1)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$repo" --body "再試行も失敗しました: $RUN_URL"
+            exit 0
+          fi
+          body="投稿の公開に失敗しました。実行ログ: $RUN_URL"
+          if [ -n "${OWNER_LOGIN:-}" ]; then
+            gh issue create --repo "$repo" --title "$title" --body "$body" --assignee "$OWNER_LOGIN" \
+              || gh issue create --repo "$repo" --title "$title" --body "$body"
+          else
+            gh issue create --repo "$repo" --title "$title" --body "$body"
+          fi

@@ -1,0 +1,35 @@
+{
+  "updated": "2026-11-26",
+  "products": [
+    {
+      "no": 1,
+      "id": "coffee-shokunin",
+      "name": "職人の珈琲 ワンドリップ 100杯",
+      "description": "いつでもドリップコーヒーが飲める安心を、買い置きに。",
+      "url": "https://www.amazon.co.jp/dp/B01DBBS7X6?tag=stockosusowak-22",
+      "label": null,
+      "until": null,
+      "active": true
+    },
+    {
+      "no": 2,
+      "id": "kayanoya-dashi",
+      "name": "茅乃舎だし 30袋",
+      "description": "寒い夜も、袋ひとつでほっとするだしの味に。",
+      "url": "https://www.amazon.co.jp/dp/B00UG9X98U?tag=stockosusowak-22",
+      "label": null,
+      "until": null,
+      "active": true
+    },
+    {
+      "no": 3,
+      "id": "kitkat-holiday",
+      "name": "キットカット ホリデイサンタ 35個",
+      "description": "冬のおやつに、みんなでわけあいたいお菓子。",
+      "url": "https://www.amazon.co.jp/dp/B0HLRY2RTP?tag=stockosusowak-22",
+      "label": "期間限定",
+      "until": "2026-12-10",
+      "active": true
+    }
+  ]
+}

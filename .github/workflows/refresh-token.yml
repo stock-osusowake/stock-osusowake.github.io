@@ -1,0 +1,48 @@
+name: refresh-token
+
+on:
+  schedule:
+    - cron: "17 18 * * 0"   # 毎週（UTC日曜 18:17 = JST月曜 03:17）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Refresh Instagram token and update secret
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${IG_ACCESS_TOKEN}"
+          resp="$(curl -fsS -G "https://graph.instagram.com/refresh_access_token" \
+            --data-urlencode "grant_type=ig_refresh_token" \
+            --data-urlencode "access_token=${IG_ACCESS_TOKEN}")"
+          new="$(printf '%s' "$resp" | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"], end="")')"
+          if [ -z "$new" ]; then echo "no token in response"; exit 1; fi
+          echo "::add-mask::${new}"
+          printf '%s' "$new" | gh secret set IG_ACCESS_TOKEN --repo stock-osusowake/stock-osusowake.github.io
+          echo "Token refreshed."
+
+      - name: Open failure issue (private queue repo)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          OWNER_LOGIN: ${{ vars.OWNER_LOGIN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -u
+          repo="stock-osusowake/post-queue"
+          title="Instagramトークンの更新に失敗しました（$(TZ=Asia/Tokyo date +%F)）"
+          body="トークンの更新に失敗しました。期限（60日）前に手動での再発行が必要な場合があります。実行ログ: $RUN_URL"
+          if [ -n "${OWNER_LOGIN:-}" ]; then
+            gh issue create --repo "$repo" --title "$title" --body "$body" --assignee "$OWNER_LOGIN" \
+              || gh issue create --repo "$repo" --title "$title" --body "$body"
+          else
+            gh issue create --repo "$repo" --title "$title" --body "$body"
+          fi

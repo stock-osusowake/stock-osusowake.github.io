@@ -354,8 +354,10 @@ def run_publish(queue_dir, video_url, env, requester=None, sleep=time.sleep, now
         container = client.create_container(video_url, post["caption"])
         client.wait_container(container, interval=poll_interval)
 
-        target = datetime.combine(today, PUBLISH_AT, tzinfo=JST)
-        wait_until(target, now_fn, sleep)
+        # dry run では sleep が何もしないため、21:00 まで待つと CPU を使い続けてしまう。待たずに進める
+        if not dry:
+            target = datetime.combine(today, PUBLISH_AT, tzinfo=JST)
+            wait_until(target, now_fn, sleep)
 
         if now_fn().astimezone(JST).date() != today:
             log("WARNING: 日付が変わったため公開しません（approvedのまま残します）")

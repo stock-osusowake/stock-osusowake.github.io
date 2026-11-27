@@ -2,7 +2,7 @@ name: refresh-token
 
 # Instagram API with Unified Login のシステムユーザートークンは期限切れにならないため、
 # トークンの更新は不要。このワークフローは、60日間動きがないと定期実行が自動で止まる
-# GitHub の仕様への対策として、毎週 publish / refresh-token を有効化し直すだけを行う。
+# GitHub の仕様への対策として、毎週 heartbeat をコミットし、念のため publish / refresh-token を有効化し直す。
 # （ファイル名は互換のためそのまま）
 
 on:
@@ -11,13 +11,28 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # 動きの記録（heartbeat）をコミットするため
 
 jobs:
   keep-alive:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # 60日間リポジトリに動きがないと定期実行（このワークフロー自身も含む）が止まるため、
+      # 毎週、最後に動いた日付を小さなファイルに書いてコミットし、「動きがある」状態を保つ
+      - uses: actions/checkout@v4
+      - name: Commit heartbeat
+        run: |
+          set -euo pipefail
+          TZ=Asia/Tokyo date +%F > .github/heartbeat
+          git config user.name "stock-osusowake-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add .github/heartbeat
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -q -m "chore: weekly heartbeat"
+          git push -q
+
+
       # BOT_PAT に Actions: Read and write が必要
       - name: Keep scheduled workflows enabled
         env:

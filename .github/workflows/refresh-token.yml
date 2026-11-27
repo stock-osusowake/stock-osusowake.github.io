@@ -29,6 +29,18 @@ jobs:
           printf '%s' "$new" | gh secret set IG_ACCESS_TOKEN --repo stock-osusowake/stock-osusowake.github.io
           echo "Token refreshed."
 
+      # 60日間リポジトリに動きがないと定期実行が自動で止まるため、毎週有効化し直す（BOT_PAT に Actions: Read and write が必要）
+      - name: Keep scheduled workflows enabled
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          set -euo pipefail
+          for wf in publish.yml refresh-token.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/${wf}/enable"
+          done
+          echo "Scheduled workflows kept enabled."
+
       - name: Open failure issue (private queue repo)
         if: failure()
         env:

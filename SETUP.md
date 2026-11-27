@@ -23,7 +23,7 @@ GitHub の組織 `stock-osusowake` に、次の2つのリポジトリを作り�
 - Repository access: 2つのリポジトリ（`stock-osusowake.github.io` と `post-queue`）
 - Permissions（Repository）:
   - `post-queue`: Contents = Read and write、Issues = Read and write
-  - `stock-osusowake.github.io`: Secrets = Read and write（トークン自動更新用）
+  - `stock-osusowake.github.io`: Secrets = Read and write（トークン自動更新用）、Actions = Read and write（定期実行が60日で止まらないようにするため）
 
 組織側で fine-grained PAT が制限されている場合は、組織の設定で許可してください。
 

@@ -1,0 +1,35 @@
+name: check-instagram
+
+# 手動実行用：Instagram のトークンとアカウントIDが正しく設定されているかを確かめる（投稿はしない）
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read account info
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${IG_ACCESS_TOKEN}"
+          code="$(curl -sS -o resp.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${IG_ACCESS_TOKEN}" \
+            "https://graph.facebook.com/v26.0/${IG_USER_ID}?fields=username")"
+          python3 - "$code" <<'PY'
+          import json, sys
+          code = sys.argv[1]
+          body = json.load(open("resp.json"))
+          if code == "200" and body.get("username"):
+              print(f"OK: @{body['username']}")
+          else:
+              err = (body.get("error") or {})
+              print(f"NG: HTTP {code} {err.get('type', '')} {err.get('message', '')[:200]}")
+              sys.exit(1)
+          PY

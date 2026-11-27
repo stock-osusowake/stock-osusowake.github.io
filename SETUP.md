@@ -13,8 +13,8 @@ GitHub の組織 `stock-osusowake` に、次の2つのリポジトリを作り�
 
 | 名前 | 内容 |
 | --- | --- |
-| `IG_ACCESS_TOKEN` | Instagram の長期アクセストークン（60日。毎週自動で更新されます） |
-| `IG_USER_ID` | Instagram のユーザーID（数字） |
+| `IG_ACCESS_TOKEN` | Instagram API with Unified Login のシステムユーザーアクセストークン（期限なし。Meta のアプリダッシュボード > ユースケース > Instagram API > API setup with Unified login の「トークンを生成」で発行） |
+| `IG_USER_ID` | Instagram のプロアカウントID（数字。同じ画面のアカウント一覧に表示される） |
 | `BOT_PAT` | Fine-grained personal access token（下記） |
 
 ### BOT_PAT の作り方
@@ -23,7 +23,7 @@ GitHub の組織 `stock-osusowake` に、次の2つのリポジトリを作り�
 - Repository access: 2つのリポジトリ（`stock-osusowake.github.io` と `post-queue`）
 - Permissions（Repository）:
   - `post-queue`: Contents = Read and write、Issues = Read and write
-  - `stock-osusowake.github.io`: Secrets = Read and write（トークン自動更新用）、Actions = Read and write（定期実行が60日で止まらないようにするため）
+  - `stock-osusowake.github.io`: Actions = Read and write（定期実行が60日で止まらないようにするため）
 
 組織側で fine-grained PAT が制限されている場合は、組織の設定で許可してください。
 

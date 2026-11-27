@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Instagram リール予約投稿（Instagram API with Instagram Login）。標準ライブラリのみ。
+"""Instagram リール予約投稿（Instagram API with Unified Login）。標準ライブラリのみ。
 
 使い方:
   python publisher/publish.py --mode select  --queue-dir queue-checkout
@@ -21,8 +21,10 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone, time as dtime
 
-API_VERSION = "v26.0"
-GRAPH = f"https://graph.instagram.com/{API_VERSION}"
+API_VERSION = os.environ.get("IG_API_VERSION", "v26.0")
+# Instagram API with Unified Login は graph.facebook.com（Instagram Login 方式なら graph.instagram.com）
+API_HOST = os.environ.get("IG_API_HOST", "graph.facebook.com")
+GRAPH = f"https://{API_HOST}/{API_VERSION}"
 JST = timezone(timedelta(hours=9))
 PUBLISH_AT = dtime(21, 0)
 MAX_ATTEMPTS = 3

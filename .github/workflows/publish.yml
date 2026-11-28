@@ -102,6 +102,43 @@ jobs:
         with:
           artifact_name: pages-clean
 
+      # Slack の #p004-aff-notice に結果を知らせる（SLACK_BOT_TOKEN が無ければ何もしない）
+      - name: Notify Slack
+        if: always() && steps.sel.outputs.has_post == 'true' && env.DRY_RUN == ''
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ vars.SLACK_NOTICE_CHANNEL }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -u
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL:-}" ]; then echo "Slack not configured"; exit 0; fi
+          python3 - > slack.json <<'PY'
+          import json, os, datetime
+          jst = datetime.timezone(datetime.timedelta(hours=9))
+          today = datetime.datetime.now(jst).date().isoformat()
+          try:
+              posts = json.load(open("queue-checkout/queue.json", encoding="utf-8"))["posts"]
+          except Exception:
+              posts = []
+          todays = [p for p in posts if p.get("publish_date") == today]
+          p = todays[0] if todays else {}
+          left = sum(1 for q in posts if q.get("status") == "approved" and q.get("publish_date", "") > today)
+          if p.get("status") == "published":
+              text = f"✅ 今日の投稿を公開しました（{p.get('id')}）\n{p.get('permalink')}\n公開待ちの残り：{left}件"
+              if left <= 2:
+                  text += "\n⚠️ 公開待ちが残り少なくなっています"
+          else:
+              err = (p.get("last_error") or "不明なエラー")[:200]
+              text = (f"❌ 今日の投稿に失敗しました（{p.get('id', '不明')}、{p.get('attempts', 0)}回目）\n"
+                      f"理由：{err}\n再試行の時刻が残っていれば、自動でやり直します。ログ：{os.environ['RUN_URL']}")
+          print(json.dumps({"channel": os.environ["SLACK_CHANNEL"], "text": text}, ensure_ascii=False))
+          PY
+          curl -sS -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            --data-binary @slack.json | python3 -c "import json,sys; r=json.load(sys.stdin); print('slack ok' if r.get('ok') else 'slack error: ' + str(r.get('error')))"
+
       - name: Open failure issue (private queue repo)
         if: failure()
         env:
